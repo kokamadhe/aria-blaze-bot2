@@ -1,46 +1,53 @@
 import os
-import logging
-import threading
+from flask import Flask, request
 from aiogram import Bot, Dispatcher, executor, types
-from flask import Flask
+import logging
 
-# Set up logging
+# Enable logging
 logging.basicConfig(level=logging.INFO)
 
-# Flask app for Render's web service detection
-web_app = Flask(__name__)
+# Bot token from environment variable (make sure to set this in Render's dashboard)
+API_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-@web_app.route("/")
-def home():
-    return "Aria Blaze is running on Render!"
+if not API_TOKEN:
+    raise RuntimeError("TELEGRAM_TOKEN environment variable is missing")
 
-# Load environment variable
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN is not set in environment variables.")
-
-# Set up bot
-bot = Bot(token=BOT_TOKEN)
+# Initialize bot and dispatcher
+bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
-# Example command handler
+# Flask app
+app = Flask(__name__)
+
+# Simple route for Render healthcheck or browser visit
+@app.route("/", methods=["GET"])
+def index():
+    return "Aria Blaze Bot is running!"
+
+# Telegram message handler example
 @dp.message_handler(commands=["start", "help"])
-async def start_handler(message: types.Message):
-    await message.reply("🔥 Hello! I'm Aria Blaze. I'm live and ready to chat!")
+async def send_welcome(message: types.Message):
+    await message.reply("Hello! I am Aria Blaze Bot. How can I help you?")
 
-# Optional custom command
-@dp.message_handler(commands=["moan"])
-async def moan_handler(message: types.Message):
-    await message.reply("Ahh~ 💦")
+# Add your other handlers here...
 
-# Start Flask app in separate thread
-def run_web():
+def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    web_app.run(host="0.0.0.0", port=port)
+    # Run Flask app on all interfaces with port from Render or default 10000
+    app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_web).start()
+    # Start Flask app in a separate thread or process if needed
+    # But simplest here is just to run Flask and Aiogram polling concurrently
+
+    import threading
+
+    # Run Flask in background thread
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+
+    # Start Aiogram polling (Telegram bot)
     executor.start_polling(dp, skip_updates=True)
+
 
 
