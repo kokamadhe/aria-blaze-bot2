@@ -1,53 +1,53 @@
 import os
-from flask import Flask, request
-from aiogram import Bot, Dispatcher, executor, types
-import logging
+from flask import Flask, request, Response
+from aiogram import Bot, Dispatcher, types
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
 
-# Enable logging
-logging.basicConfig(level=logging.INFO)
-
-# Bot token from environment variable (make sure to set this in Render's dashboard)
 API_TOKEN = os.getenv("TELEGRAM_TOKEN")
+WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
+WEBHOOK_URL_BASE = os.getenv("WEBHOOK_URL_BASE")  # Your Render HTTPS URL like https://yourapp.onrender.com
+WEBHOOK_URL = f"{WEBHOOK_URL_BASE}{WEBHOOK_PATH}"
 
-if not API_TOKEN:
-    raise RuntimeError("TELEGRAM_TOKEN environment variable is missing")
-
-# Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
+dp.middleware.setup(LoggingMiddleware())
 
-# Flask app
 app = Flask(__name__)
 
-# Simple route for Render healthcheck or browser visit
-@app.route("/", methods=["GET"])
-def index():
-    return "Aria Blaze Bot is running!"
-
-# Telegram message handler example
 @dp.message_handler(commands=["start", "help"])
 async def send_welcome(message: types.Message):
-    await message.reply("Hello! I am Aria Blaze Bot. How can I help you?")
+    await message.answer("Hello! I'm your bot running on webhook.")
 
-# Add your other handlers here...
+@dp.message_handler()
+async def echo_message(message: types.Message):
+    await message.answer(f"You said: {message.text}")
 
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    # Run Flask app on all interfaces with port from Render or default 10000
-    app.run(host="0.0.0.0", port=port)
+@app.route("/")
+def index():
+    return "Bot is running!"
+
+@app.route(WEBHOOK_PATH, methods=["POST"])
+def webhook():
+    if request.content_type == "application/json":
+        update = types.Update(**request.get_json())
+        # Process update with Aiogram dispatcher
+        dp.loop.create_task(dp.process_update(update))
+        return Response(status=200)
+    else:
+        return Response(status=403)
 
 if __name__ == "__main__":
-    # Start Flask app in a separate thread or process if needed
-    # But simplest here is just to run Flask and Aiogram polling concurrently
+    # Set webhook on startup
+    import asyncio
 
-    import threading
+    async def on_startup():
+        await bot.set_webhook(WEBHOOK_URL)
+        print(f"Webhook set to {WEBHOOK_URL}")
 
-    # Run Flask in background thread
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.start()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(on_startup())
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
 
-    # Start Aiogram polling (Telegram bot)
-    executor.start_polling(dp, skip_updates=True)
 
 
 
