@@ -1,3 +1,20 @@
 aiogram==2.25.1
 requests
+magic-filter>=1.0.9
+Babel<2.10.0,>=2.9.1
+aiohttp<3.9.0,>=3.8.0
+flask
+certifi>=2021.10.8
+idna<4,>=2.5
+charset_normalizer<4,>=2
+urllib3<3,>=1.21.1
+attrs>=17.3.0
+async-timeout<5.0,>=4.0.0a3
+aiosignal>=1.1.2
+yarl<2.0,>=1.0
+frozenlist>=1.1.1
+multidict<7.0,>=4.5
+pytz>=2015.7
+typing-extensions>=4.1.0
+propcache>=0.2.1
 
