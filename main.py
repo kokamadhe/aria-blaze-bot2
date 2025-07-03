@@ -1,27 +1,24 @@
 import os
-import requests
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+from aiogram import Bot, Dispatcher, executor, types
+from flask import Flask
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+app = Flask(__name__)
 
-bot = Bot(token=BOT_TOKEN)
+@app.route('/')
+def home():
+    return "Aria Blaze is running!"
+
+# Your bot code
+API_TOKEN = os.getenv("BOT_TOKEN")
+bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
-@dp.message_handler()
-async def reply(message: types.Message):
-    user_input = message.text
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-    }
-    data = {
-        "model": "openai/gpt-3.5-turbo",
-        "messages": [{"role": "user", "content": user_input}]
-    }
-    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
-    reply_text = response.json()["choices"][0]["message"]["content"]
-    await message.reply(reply_text)
+@dp.message_handler(commands=['start'])
+async def start_cmd(message: types.Message):
+    await message.reply("Hi! I'm Aria Blaze.")
 
 if __name__ == "__main__":
-    executor.start_polling(dp)
+    import threading
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))).start()
+    executor.start_polling(dp, skip_updates=True)
+
