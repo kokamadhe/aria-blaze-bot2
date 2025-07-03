@@ -1,52 +1,85 @@
 import os
-from flask import Flask, request, Response
+import requests
+from flask import Flask, request
 from aiogram import Bot, Dispatcher, types
-from aiogram.contrib.middlewares.logging import LoggingMiddleware
+from aiogram.utils.executor import start_webhook
 
-API_TOKEN = os.getenv("TELEGRAM_TOKEN")
-WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
-WEBHOOK_URL_BASE = os.getenv("WEBHOOK_URL_BASE")  # Your Render HTTPS URL like https://yourapp.onrender.com
-WEBHOOK_URL = f"{WEBHOOK_URL_BASE}{WEBHOOK_PATH}"
-
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
-dp.middleware.setup(LoggingMiddleware())
+# Load environment variables
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 app = Flask(__name__)
 
-@dp.message_handler(commands=["start", "help"])
-async def send_welcome(message: types.Message):
-    await message.answer("Hello! I'm your bot running on webhook.")
+bot = Bot(token=TELEGRAM_TOKEN)
+dp = Dispatcher(bot)
+
+# Webhook settings
+WEBHOOK_PATH = f'/{TELEGRAM_TOKEN}'
+WEBHOOK_URL = f'https://aria-blaze-bot2.onrender.com{WEBHOOK_PATH}'  # Your Render URL
+WEBAPP_HOST = '0.0.0.0'
+WEBAPP_PORT = int(os.environ.get('PORT', 5000))
+
+
+# OpenRouter AI chat
+def ask_openrouter(message_text):
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": "openrouter/chatgpt",  # Or any other available model
+        "messages": [
+            {"role": "system", "content": "You are Aria Blaze, an AI chatbot."},
+            {"role": "user", "content": message_text}
+        ]
+    }
+
+    try:
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+        return response.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        return "Sorry, I couldn't process that."
+
 
 @dp.message_handler()
-async def echo_message(message: types.Message):
-    await message.answer(f"You said: {message.text}")
+async def handle_message(message: types.Message):
+    reply = ask_openrouter(message.text)
+    await message.answer(reply)
 
-@app.route("/")
+
+@app.route("/", methods=["GET"])
 def index():
-    return "Bot is running!"
+    return "Bot is live!"
+
 
 @app.route(WEBHOOK_PATH, methods=["POST"])
-def webhook():
-    if request.content_type == "application/json":
-        update = types.Update(**request.get_json())
-        # Process update with Aiogram dispatcher
-        dp.loop.create_task(dp.process_update(update))
-        return Response(status=200)
-    else:
-        return Response(status=403)
+async def webhook():
+    update = types.Update.de_json(request.get_json(force=True))
+    await dp.process_update(update)
+    return "ok"
+
+
+async def on_startup(dp):
+    await bot.set_webhook(WEBHOOK_URL)
+
+
+async def on_shutdown(dp):
+    await bot.delete_webhook()
+
 
 if __name__ == "__main__":
-    # Set webhook on startup
-    import asyncio
+    from aiogram import executor
+    start_webhook(
+        dispatcher=dp,
+        webhook_path=WEBHOOK_PATH,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+        skip_updates=True,
+        host=WEBAPP_HOST,
+        port=WEBAPP_PORT,
+    )
 
-    async def on_startup():
-        await bot.set_webhook(WEBHOOK_URL)
-        print(f"Webhook set to {WEBHOOK_URL}")
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(on_startup())
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
 
 
 
