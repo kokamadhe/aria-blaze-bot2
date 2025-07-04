@@ -1,71 +1,75 @@
 import os
-import requests
 from flask import Flask, request
 from aiogram import Bot, Dispatcher, types
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.utils.executor import start_webhook
+import asyncio
+import requests
+from dotenv import load_dotenv
 
-# Load tokens from Render environment
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+# Load environment variables
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-WEBHOOK_PATH = f"/{TELEGRAM_TOKEN}"
-WEBHOOK_URL = f"https://aria-blaze-bot2.onrender.com{WEBHOOK_PATH}"
+WEBHOOK_URL = f"https://aria-blaze-bot2-1.onrender.com/{BOT_TOKEN}"
 
-# Setup bot and dispatcher
-bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher(bot, storage=MemoryStorage())
-
-# Flask app setup
+# Initialize bot and dispatcher
+bot = Bot(token=BOT_TOKEN)
+Bot.set_current(bot)  # 👈 Important fix!
+dp = Dispatcher(bot)
 app = Flask(__name__)
 
-# 🔥 Romantic/Flirty/Adult AI Handler
-@dp.message_handler()
-async def handle_message(message: types.Message):
-    prompt = message.text
-
+# AI reply function (flirty/adult/romantic personality)
+def generate_ai_reply(user_message):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
     }
-
     data = {
-        "model": "openrouter/mytho-max-l2",  # Use other models like `nous-hermes-2-mixtral` if needed
+        "model": "openchat/openchat-3.5-1210",  # Customize AI model
         "messages": [
-            {"role": "system", "content": "You are a flirty, romantic, seductive, and naughty girlfriend. Be loving, fun, and open to adult conversation."},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": "You are Aria Blaze, a seductive, romantic, and flirty AI girlfriend who engages in deep, adult, and passionate conversation with the user. Speak like a sexy, intelligent human with emotions and confidence. Always reply with affection and excitement, unless instructed otherwise."
+            },
+            {
+                "role": "user",
+                "content": user_message
+            }
         ]
     }
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()["choices"][0]["message"]["content"]
+    else:
+        return "Hmm... I can't think right now. Try again later, baby. 😘"
 
-    try:
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
-        ai_reply = response.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        ai_reply = "Hmm... I got shy 😳 Something went wrong."
-
+# Telegram message handler
+@dp.message_handler()
+async def handle_message(message: types.Message):
+    user_text = message.text
+    ai_reply = generate_ai_reply(user_text)
     await message.reply(ai_reply)
 
-# Root test route
-@app.route("/", methods=["GET"])
-def index():
-    return "Aria Blaze is running 💋"
-
-# Webhook route
-@app.route(WEBHOOK_PATH, methods=["POST"])
+# Flask route to receive Telegram webhooks
+@app.route(f'/{BOT_TOKEN}', methods=["POST"])
 async def webhook():
-    update = types.Update(**request.json)
+    update = types.Update(**request.get_json(force=True))
     await dp.process_update(update)
     return {"ok": True}
 
-# Start server
+# Webhook setup route (optional)
+@app.route('/set_webhook', methods=["GET"])
+def set_webhook():
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
+    response = requests.post(url, data={"url": WEBHOOK_URL})
+    return response.json()
+
+# Run Flask app
 if __name__ == "__main__":
-    import asyncio
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    app.run(host="0.0.0.0", port=10000)
 
-    async def on_startup():
-        await bot.set_webhook(WEBHOOK_URL)
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(on_startup())
-
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
 
 
