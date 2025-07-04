@@ -2,83 +2,71 @@ import os
 import requests
 from flask import Flask, request
 from aiogram import Bot, Dispatcher, types
-from aiogram.utils.executor import start_webhook
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
-# Load environment variables
+# Load tokens from Render environment
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+WEBHOOK_PATH = f"/{TELEGRAM_TOKEN}"
+WEBHOOK_URL = f"https://aria-blaze-bot2.onrender.com{WEBHOOK_PATH}"
 
+# Setup bot and dispatcher
+bot = Bot(token=TELEGRAM_TOKEN)
+dp = Dispatcher(bot, storage=MemoryStorage())
+
+# Flask app setup
 app = Flask(__name__)
 
-bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher(bot)
+# 🔥 Romantic/Flirty/Adult AI Handler
+@dp.message_handler()
+async def handle_message(message: types.Message):
+    prompt = message.text
 
-# Webhook settings
-WEBHOOK_PATH = f'/{TELEGRAM_TOKEN}'
-WEBHOOK_URL = f'https://aria-blaze-bot2.onrender.com{WEBHOOK_PATH}'  # Your Render URL
-WEBAPP_HOST = '0.0.0.0'
-WEBAPP_PORT = int(os.environ.get('PORT', 5000))
-
-
-# OpenRouter AI chat
-def ask_openrouter(message_text):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
     }
 
     data = {
-        "model": "openrouter/chatgpt",  # Or any other available model
+        "model": "openrouter/mytho-max-l2",  # Use other models like `nous-hermes-2-mixtral` if needed
         "messages": [
-            {"role": "system", "content": "You are Aria Blaze, an AI chatbot."},
-            {"role": "user", "content": message_text}
+            {"role": "system", "content": "You are a flirty, romantic, seductive, and naughty girlfriend. Be loving, fun, and open to adult conversation."},
+            {"role": "user", "content": prompt}
         ]
     }
 
     try:
         response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
-        return response.json()["choices"][0]["message"]["content"]
+        ai_reply = response.json()["choices"][0]["message"]["content"]
     except Exception as e:
-        return "Sorry, I couldn't process that."
+        ai_reply = "Hmm... I got shy 😳 Something went wrong."
 
+    await message.reply(ai_reply)
 
-@dp.message_handler()
-async def handle_message(message: types.Message):
-    reply = ask_openrouter(message.text)
-    await message.answer(reply)
-
-
+# Root test route
 @app.route("/", methods=["GET"])
 def index():
-    return "Bot is live!"
+    return "Aria Blaze is running 💋"
 
-
+# Webhook route
 @app.route(WEBHOOK_PATH, methods=["POST"])
 async def webhook():
-    update = types.Update.de_json(request.get_json(force=True))
+    update = types.Update(**request.json)
     await dp.process_update(update)
-    return "ok"
+    return {"ok": True}
 
-
-async def on_startup(dp):
-    await bot.set_webhook(WEBHOOK_URL)
-
-
-async def on_shutdown(dp):
-    await bot.delete_webhook()
-
-
+# Start server
 if __name__ == "__main__":
-    from aiogram import executor
-    start_webhook(
-        dispatcher=dp,
-        webhook_path=WEBHOOK_PATH,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-        skip_updates=True,
-        host=WEBAPP_HOST,
-        port=WEBAPP_PORT,
-    )
+    import asyncio
+
+    async def on_startup():
+        await bot.set_webhook(WEBHOOK_URL)
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(on_startup())
+
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
 
 
