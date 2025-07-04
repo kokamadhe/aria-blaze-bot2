@@ -1,7 +1,8 @@
+import os
 import requests
 
-BOT_TOKEN = "7579467782:AAFRXWF0OQV-fe0Wp5UBN-ZGHPPGeMIXDtQ"
-WEBHOOK_URL = "https://aria-blaze-bot2-1.onrender.com/webhook"
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # Set this environment variable locally
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 set_webhook_url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}"
 
@@ -9,4 +10,5 @@ response = requests.get(set_webhook_url)
 
 print(response.status_code)
 print(response.json())
+
 
