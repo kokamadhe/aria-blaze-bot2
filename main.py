@@ -32,9 +32,9 @@ async def echo_message(message: types.Message):
     await message.reply("Hello!")
 
 if __name__ == "__main__":
-    # For local testing only, Render uses gunicorn so this is not used in deploy
+    # For local testing only; Render uses gunicorn, so this block is not used in deployment
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
-s
+
 
 
 
